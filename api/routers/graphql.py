@@ -51,6 +51,7 @@ async def get_context(custom_context=Depends(custom_context_dependency), ):
 graphql_router = GraphQLRouter(
     schema,
     context_getter=get_context,
+    multipart_uploads_enabled=True,
     subscription_protocols=[
         GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
     ]

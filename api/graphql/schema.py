@@ -4,6 +4,7 @@ from typing import List, AsyncGenerator
 import strawberry
 # noinspection PyPackageRequirements
 from strawberry.file_uploads import Upload
+from strawberry.types import Info
 
 from api.graphql.fields import (
     UserSchema,
@@ -74,7 +75,7 @@ class Mutation:
 @strawberry.type
 class Subscription:
     @strawberry.subscription
-    async def user_added_subscription(self, info) -> AsyncGenerator[UserSchema, None]:
+    async def user_added_subscription(self, info: Info) -> AsyncGenerator[UserSchema, None]:
         import logging
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
@@ -89,7 +90,7 @@ class Subscription:
                 yield UserSchema(**user)
 
     @strawberry.subscription
-    async def message_added_subscription(self, info) -> AsyncGenerator[MessageSchema, None]:
+    async def message_added_subscription(self, info: Info) -> AsyncGenerator[MessageSchema, None]:
         import logging
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
