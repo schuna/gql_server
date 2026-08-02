@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from api.domain import Message
 from api.models import User
 from api.schemas import UserCreateSchema
 
@@ -28,3 +29,11 @@ class UserUnitOfWorkPort(Protocol):
     def commit(self) -> None: ...
 
     def rollback(self) -> None: ...
+
+
+class MessageRepositoryPort(Protocol):
+    def get_by_tid(self, tid: int, limit: int = 100) -> list[Message]: ...
+
+    def get_max_id(self, tid: int) -> int: ...
+
+    def add_by_tid(self, tid: int, messages: list[str]) -> list[Message]: ...

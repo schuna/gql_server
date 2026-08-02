@@ -23,11 +23,19 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    broadcast = container.broadcast()
+    broadcast_connected = False
     try:
         container.db().create_database()
     except DatabaseUnavailableError:
         logger.exception("Database is unavailable during startup; readiness is degraded")
-    yield
+    try:
+        await broadcast.connect()
+        broadcast_connected = True
+        yield
+    finally:
+        if broadcast_connected:
+            await broadcast.disconnect()
 
 
 app = FastAPI(lifespan=lifespan)

@@ -1,38 +1,33 @@
-from typing import List
+from threading import Lock
 
-from api.graphql.fields import ResponseSchema, MessageSchema
-
-message_buffer = dict()
+from api.domain import Message
 
 
 class MessageRepository:
     def __init__(self):
-        self.pid = 1
+        self._messages: dict[int, list[Message]] = {}
+        self._lock = Lock()
 
-    def get_by_tid(self, tid: int, limit: int = 100) -> ResponseSchema:
-        if f"tid{tid}" not in message_buffer.keys():
-            message_buffer[f"tid{tid}"] = []
-        message_buffer[f"tid{tid}"] = message_buffer[f"tid{tid}"][-limit:]
-        return ResponseSchema(**{"data": message_buffer[f"tid{tid}"]})
+    def get_by_tid(self, tid: int, limit: int = 100) -> list[Message]:
+        with self._lock:
+            messages = self._messages.setdefault(tid, [])
+            if limit < 1:
+                return []
+            return list(messages[-limit:])
 
     def get_max_id(self, tid: int) -> int:
-        if f"tid{tid}" not in message_buffer.keys():
-            message_buffer[f"tid{tid}"] = []
-        if message_buffer[f"tid{tid}"]:
-            return message_buffer[f"tid{tid}"][-1].id
-        else:
-            return 0
+        with self._lock:
+            messages = self._messages.setdefault(tid, [])
+            return messages[-1].id if messages else 0
 
-    def add_by_tid(self, tid: int, messages: List[str]) -> ResponseSchema:
-        entries = []
-        m_id = self.get_max_id(tid)
-        for message in messages:
-            m_id += 1
-            entry = MessageSchema(**{
-                "id": m_id,
-                "tid": tid,
-                "text": message
-            })
-            message_buffer[f"tid{tid}"].append(entry)
-            entries.append(entry)
-        return ResponseSchema(**{"data": entries})
+    def add_by_tid(self, tid: int, messages: list[str]) -> list[Message]:
+        with self._lock:
+            buffer = self._messages.setdefault(tid, [])
+            message_id = buffer[-1].id if buffer else 0
+            entries = []
+            for text in messages:
+                message_id += 1
+                entry = Message(id=message_id, tid=tid, text=text)
+                buffer.append(entry)
+                entries.append(entry)
+            return entries

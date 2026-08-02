@@ -59,12 +59,10 @@ async def upload_file(filename: str, file: Upload):
 
 
 async def get_messages(tid: int, info: Info) -> List[MessageSchema]:
-    return info.context.message_repository.get_by_tid(tid).data
+    return info.context.message_service.get_messages(tid)
 
 
 async def add_messages(tid: int, info: Info) -> List[MessageSchema]:
-    id_max = info.context.message_repository.get_max_id(tid)
-    data = [f'{id_max + x + 1}' for x in range(100)]
-    response = info.context.message_repository.add_by_tid(tid=tid, messages=data)
-    await info.context.broadcast.publish(channel="add_message", message=response.data)
-    return response.data
+    messages = info.context.message_service.add_generated_messages(tid)
+    await info.context.broadcast.publish(channel="add_message", message=messages)
+    return messages

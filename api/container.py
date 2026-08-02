@@ -1,6 +1,7 @@
+from broadcaster import Broadcast
 from dependency_injector import containers, providers
 
-from api.application import UserService
+from api.application import MessageService, UserService
 from api.database import Database
 from api.repositories.message import MessageRepository
 from api.security import PasswordHasher
@@ -25,7 +26,10 @@ class Container(containers.DeclarativeContainer):
         uow_factory=unit_of_work.provider,
         password_hasher=password_hasher,
     )
-    message_repository = providers.Factory(
-        MessageRepository
+    message_repository = providers.Singleton(MessageRepository)
+    message_service = providers.Factory(
+        MessageService,
+        repository=message_repository,
     )
+    broadcast = providers.Singleton(Broadcast, "memory://")
 

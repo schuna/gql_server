@@ -451,4 +451,17 @@ Service/Unit of Work 전체 이동은 그 다음 PR로 분리한다. 이렇게 �
 - `ResourceNotFoundError`, `ConflictError`의 REST/GraphQL 공통 매핑
 - SQLite 통합 테스트를 통한 commit, conflict rollback, 조회 실패 검증
 
-이에 따라 사용자 repository는 GraphQL `ResponseSchema`에 더 이상 의존하지 않고 presentation 계층에서 직접 호출되지 않는다. 아직 남은 주요 작업은 message 기능의 동일한 계층 분리, broadcaster lifecycle 정리, SQLAlchemy entity와 domain model의 완전한 분리다.
+이에 따라 사용자 repository는 GraphQL `ResponseSchema`에 더 이상 의존하지 않고 presentation 계층에서 직접 호출되지 않는다.
+
+### 3차 적용 상태
+
+- framework 독립적인 `Message` domain model 추가
+- `MessageRepositoryPort`와 `MessageService` 추가
+- in-memory message repository의 GraphQL 타입 의존 및 module 전역 상태 제거
+- repository 인스턴스 상태와 lock을 사용해 기본 thread safety 확보
+- REST/GraphQL context가 repository 대신 service에 의존
+- broadcaster를 DI singleton으로 등록
+- FastAPI lifespan에서 broadcaster connect/disconnect 보장
+- message 동작과 resource lifecycle 회귀 테스트 추가
+
+아직 남은 주요 작업은 SQLAlchemy entity와 domain model의 완전한 분리, 운영용 외부 message broker 도입, broker 장애의 공개 오류 계약, transactional outbox 검토다.

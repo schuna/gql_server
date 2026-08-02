@@ -1,4 +1,4 @@
-from typing import Optional, Any, List
+from typing import List
 
 # noinspection PyPackageRequirements
 import strawberry
@@ -11,13 +11,6 @@ class TokenSchema:
     token_type: str
     user_id: int
     username: str
-
-
-@strawberry.type
-class ResponseSchema:
-    data: Optional[Any] = None
-    success: Optional[bool] = True
-    message: Optional[str] = ""
 
 
 @strawberry.type
