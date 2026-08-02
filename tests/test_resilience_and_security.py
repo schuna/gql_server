@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 
 from api.database import Database
+from api.application import CreateUserResult
 from api.error_handlers import PUBLIC_DATABASE_ERROR, register_exception_handlers
 from api.errors import BrokerUnavailableError, DatabaseUnavailableError
 from api.graphql.fields import UserCreateInput
@@ -23,12 +24,15 @@ class FakeUserService:
     def __init__(self):
         self.entry = None
 
-    def create(self, entry):
+    def create_or_get(self, entry):
         self.entry = entry
-        return SimpleNamespace(
-            id=1,
-            username=entry.username,
-            email=entry.email,
+        return CreateUserResult(
+            user=SimpleNamespace(
+                id=1,
+                username=entry.username,
+                email=entry.email,
+            ),
+            created=True,
         )
 
 
@@ -184,8 +188,13 @@ def test_graphql_user_creation_uses_service_and_public_event():
 
 def test_graphql_reports_committed_operation_when_publish_fails():
     class UserService:
-        def create(self, entry):
-            return SimpleNamespace(id=1, username=entry.username, email=entry.email)
+        def create_or_get(self, entry):
+            return CreateUserResult(
+                user=SimpleNamespace(
+                    id=1, username=entry.username, email=entry.email
+                ),
+                created=True,
+            )
 
     class FailingEventBroker:
         async def publish(self, **kwargs):
@@ -220,3 +229,38 @@ def test_graphql_reports_committed_operation_when_publish_fails():
         }
     else:
         raise AssertionError("Broker error was not exposed")
+
+
+def test_graphql_duplicate_user_does_not_publish_event():
+    class ExistingUserService:
+        def create_or_get(self, entry):
+            return CreateUserResult(
+                user=SimpleNamespace(
+                    id=1, username=entry.username, email=entry.email
+                ),
+                created=False,
+            )
+
+    class UnexpectedEventBroker:
+        async def publish(self, **kwargs):
+            raise AssertionError("Duplicate user must not publish add_user")
+
+    info = SimpleNamespace(
+        context=SimpleNamespace(
+            user_service=ExistingUserService(),
+            event_broker=UnexpectedEventBroker(),
+        )
+    )
+
+    result = asyncio.run(
+        create_user(
+            UserCreateInput(
+                username="test-user",
+                email="test@example.com",
+                password="plain-password",
+            ),
+            info,
+        )
+    )
+
+    assert result.id == 1

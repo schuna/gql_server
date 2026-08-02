@@ -67,7 +67,7 @@ def login(
 def create_user(
         request: UserCreateSchema,
         user_service: UserService = Depends(Provide[Container.user_service])):
-    return user_service.create(request)
+    return user_service.create_or_get(request).user
 
 
 @router.get("/get_user/{user_id}", response_model=UserDisplaySchema)

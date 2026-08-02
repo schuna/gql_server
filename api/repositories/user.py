@@ -2,6 +2,7 @@ from api.domain import User
 from api.errors import ConflictError, ResourceNotFoundError
 from api.models import UserRecord
 from api.schemas import UserCreateSchema
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 
 
@@ -39,6 +40,19 @@ class UserRepository:
         if record is None:
             raise ResourceNotFoundError(f"User with name {username} not found")
         return self._to_domain(record)
+
+    def find_by_username_or_email(self, username: str, email: str) -> list[User]:
+        records = (
+            self.session.query(UserRecord)
+            .filter(
+                or_(
+                    UserRecord.username == username,
+                    UserRecord.email == email,
+                )
+            )
+            .all()
+        )
+        return [self._to_domain(record) for record in records]
 
     def list_users(self) -> list[User]:
         records = self.session.query(UserRecord).all()

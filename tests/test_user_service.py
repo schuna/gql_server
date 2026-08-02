@@ -70,6 +70,88 @@ def test_unit_of_work_rolls_back_conflicting_user(user_service):
     assert [user.username for user in service.list_users()] == ["alice"]
 
 
+def test_create_or_get_returns_exact_existing_user_without_changing_password(
+    user_service,
+):
+    service, hasher = user_service
+    first = service.create_or_get(
+        UserCreateSchema(
+            username="alice", email="alice@example.com", password="one"
+        )
+    )
+    duplicate = service.create_or_get(
+        UserCreateSchema(
+            username="alice", email="alice@example.com", password="different"
+        )
+    )
+
+    assert first.created is True
+    assert duplicate.created is False
+    assert duplicate.user.id == first.user.id
+    assert service.get(first.user.id).password == "hashed:one"
+    assert hasher.hashed_passwords == ["one"]
+    assert len(service.list_users()) == 1
+
+
+@pytest.mark.parametrize(
+    ("username", "email"),
+    [
+        ("alice", "other@example.com"),
+        ("other", "alice@example.com"),
+    ],
+)
+def test_create_or_get_keeps_partial_unique_matches_as_conflicts(
+    user_service, username, email
+):
+    service, _ = user_service
+    service.create(
+        UserCreateSchema(username="alice", email="alice@example.com", password="one")
+    )
+
+    with pytest.raises(ConflictError):
+        service.create_or_get(
+            UserCreateSchema(username=username, email=email, password="two")
+        )
+
+
+def test_create_or_get_keeps_cross_user_match_as_conflict(user_service):
+    service, _ = user_service
+    service.create(
+        UserCreateSchema(username="alice", email="alice@example.com", password="one")
+    )
+    service.create(
+        UserCreateSchema(username="bob", email="bob@example.com", password="two")
+    )
+
+    with pytest.raises(ConflictError):
+        service.create_or_get(
+            UserCreateSchema(
+                username="alice", email="bob@example.com", password="three"
+            )
+        )
+
+
+def test_create_or_get_requeries_after_insert_race(user_service, monkeypatch):
+    service, _ = user_service
+    strict_create = service.create
+
+    def competing_insert(item):
+        strict_create(item)
+        raise ConflictError("Resource already exists")
+
+    monkeypatch.setattr(service, "create", competing_insert)
+
+    result = service.create_or_get(
+        UserCreateSchema(
+            username="alice", email="alice@example.com", password="one"
+        )
+    )
+
+    assert result.created is False
+    assert result.user.username == "alice"
+    assert len(service.list_users()) == 1
+
+
 def test_service_reports_missing_user(user_service):
     service, _ = user_service
 
