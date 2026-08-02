@@ -1,2 +1,4 @@
 db:
   url: ${DATABASE_URL:"sqlite:///./database.db"}
+broadcast:
+  url: ${BROADCAST_URL:"memory://"}

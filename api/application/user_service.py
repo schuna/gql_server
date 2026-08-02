@@ -1,8 +1,8 @@
 from collections.abc import Callable
 
 from api.application.ports import UserUnitOfWorkPort
+from api.domain import User
 from api.errors import ResourceNotFoundError
-from api.models import User
 from api.schemas import UserCreateSchema
 from api.security import PasswordHasher
 

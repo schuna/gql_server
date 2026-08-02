@@ -23,19 +23,25 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    broadcast = container.broadcast()
-    broadcast_connected = False
+    event_broker = container.event_broker()
+    broker_connected = False
     try:
         container.db().create_database()
     except DatabaseUnavailableError:
         logger.exception("Database is unavailable during startup; readiness is degraded")
     try:
-        await broadcast.connect()
-        broadcast_connected = True
+        await event_broker.connect()
+        broker_connected = True
+    except Exception:
+        logger.exception("Message broker is unavailable during startup; readiness is degraded")
+    try:
         yield
     finally:
-        if broadcast_connected:
-            await broadcast.disconnect()
+        if broker_connected:
+            try:
+                await event_broker.disconnect()
+            except Exception:
+                logger.exception("Message broker disconnect failed")
 
 
 app = FastAPI(lifespan=lifespan)

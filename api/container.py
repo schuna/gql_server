@@ -3,6 +3,7 @@ from dependency_injector import containers, providers
 
 from api.application import MessageService, UserService
 from api.database import Database
+from api.messaging import EventBroker
 from api.repositories.message import MessageRepository
 from api.security import PasswordHasher
 from api.unit_of_work import SqlAlchemyUnitOfWork
@@ -31,5 +32,6 @@ class Container(containers.DeclarativeContainer):
         MessageService,
         repository=message_repository,
     )
-    broadcast = providers.Singleton(Broadcast, "memory://")
+    broadcast_backend = providers.Singleton(Broadcast, config.broadcast.url)
+    event_broker = providers.Singleton(EventBroker, backend=broadcast_backend)
 

@@ -7,7 +7,7 @@ from sqlalchemy.exc import OperationalError
 
 from api.database import Database
 from api.error_handlers import PUBLIC_DATABASE_ERROR, register_exception_handlers
-from api.errors import DatabaseUnavailableError
+from api.errors import BrokerUnavailableError, DatabaseUnavailableError
 from api.graphql.fields import UserCreateInput
 from api.graphql.resolvers import create_user
 from api.middleware import RequestIdMiddleware
@@ -32,7 +32,7 @@ class FakeUserService:
         )
 
 
-class FakeBroadcast:
+class FakeEventBroker:
     def __init__(self):
         self.message = None
 
@@ -89,10 +89,36 @@ def test_health_checks_distinguish_live_from_ready():
             raise DatabaseUnavailableError()
 
     response = Response()
-    result = readiness(response=response, database=UnavailableDatabase())
+    event_broker = SimpleNamespace(connected=False)
+    result = readiness(
+        response=response,
+        database=UnavailableDatabase(),
+        event_broker=event_broker,
+    )
 
     assert response.status_code == 503
-    assert result == {"status": "unavailable", "database": "unavailable"}
+    assert result == {
+        "status": "unavailable",
+        "database": "unavailable",
+        "broker": "unavailable",
+    }
+
+    class AvailableDatabase:
+        def ping(self):
+            return None
+
+    response = Response()
+    result = readiness(
+        response=response,
+        database=AvailableDatabase(),
+        event_broker=event_broker,
+    )
+    assert response.status_code == 503
+    assert result == {
+        "status": "unavailable",
+        "database": "available",
+        "broker": "unavailable",
+    }
 
 
 def test_graphql_schema_does_not_expose_password():
@@ -128,11 +154,11 @@ def test_graphql_database_error_has_stable_extensions():
 
 def test_graphql_user_creation_uses_service_and_public_event():
     service = FakeUserService()
-    broadcast = FakeBroadcast()
+    event_broker = FakeEventBroker()
     info = SimpleNamespace(
         context=SimpleNamespace(
             user_service=service,
-            broadcast=broadcast,
+            event_broker=event_broker,
         )
     )
 
@@ -149,8 +175,48 @@ def test_graphql_user_creation_uses_service_and_public_event():
 
     assert service.entry.password == "plain-password"
     assert result.username == "test-user"
-    assert broadcast.message == {
+    assert event_broker.message == {
         "id": 1,
         "username": "test-user",
         "email": "test@example.com",
     }
+
+
+def test_graphql_reports_committed_operation_when_publish_fails():
+    class UserService:
+        def create(self, entry):
+            return SimpleNamespace(id=1, username=entry.username, email=entry.email)
+
+    class FailingEventBroker:
+        async def publish(self, **kwargs):
+            raise BrokerUnavailableError()
+
+    request = SimpleNamespace(state=SimpleNamespace(request_id="broker-request"))
+    info = SimpleNamespace(
+        context=SimpleNamespace(
+            request=request,
+            user_service=UserService(),
+            event_broker=FailingEventBroker(),
+        )
+    )
+
+    try:
+        asyncio.run(
+            create_user(
+                UserCreateInput(
+                    username="test-user",
+                    email="test@example.com",
+                    password="plain-password",
+                ),
+                info,
+            )
+        )
+    except Exception as exc:
+        assert exc.extensions == {
+            "code": "BROKER_UNAVAILABLE",
+            "retryable": False,
+            "operation_committed": True,
+            "request_id": "broker-request",
+        }
+    else:
+        raise AssertionError("Broker error was not exposed")

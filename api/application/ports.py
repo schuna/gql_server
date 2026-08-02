@@ -1,7 +1,6 @@
 from typing import Protocol
 
-from api.domain import Message
-from api.models import User
+from api.domain import Message, User
 from api.schemas import UserCreateSchema
 
 

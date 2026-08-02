@@ -1,4 +1,3 @@
-from broadcaster import Broadcast
 from dependency_injector.wiring import inject, Provide
 from fastapi import Depends
 # noinspection PyPackageRequirements
@@ -9,21 +8,22 @@ from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_P
 from api.application import MessageService, UserService
 from api.container import Container
 from api.graphql.schema import schema
+from api.messaging import EventBroker
 
 
 class CustomContext(BaseContext):
-    broadcast: Broadcast
+    event_broker: EventBroker
 
     @inject
     def __init__(
             self,
             user_service: UserService = Depends(Provide[Container.user_service]),
             message_service: MessageService = Depends(Provide[Container.message_service]),
-            broadcast: Broadcast = Depends(Provide[Container.broadcast])):
+            event_broker: EventBroker = Depends(Provide[Container.event_broker])):
         super().__init__()
         self.message_service = message_service
         self.user_service = user_service
-        self.broadcast = broadcast
+        self.event_broker = event_broker
 
 
 def custom_context_dependency() -> CustomContext:

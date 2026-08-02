@@ -2,6 +2,7 @@ import pytest
 
 from api.application import UserService
 from api.database import Database
+from api.domain import User
 from api.errors import ConflictError, ResourceNotFoundError
 from api.schemas import UserCreateSchema
 from api.unit_of_work import SqlAlchemyUnitOfWork
@@ -43,6 +44,8 @@ def test_service_owns_hashing_and_transaction(user_service):
     loaded = service.get(created.id)
 
     assert hasher.hashed_passwords == ["plain-password"]
+    assert isinstance(created, User)
+    assert not hasattr(created, "_sa_instance_state")
     assert request.password == "plain-password"
     assert loaded.password == "hashed:plain-password"
     assert service.authenticate("alice", "plain-password").id == created.id

@@ -20,6 +20,8 @@ from api.graphql.resolvers import (
     get_messages,
     add_messages
 )
+from api.errors import BrokerUnavailableError
+from api.graphql.errors import broker_unavailable_graphql_error
 from api.utils.auth import IsAuthenticated
 
 
@@ -80,17 +82,20 @@ class Subscription:
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
         logger.info("starting add user")
-        logger.info(id(info.context.broadcast))
+        logger.info(id(info.context.event_broker))
 
-        async with info.context.broadcast.subscribe(channel="add_user") as subscriber:
-            logger.info(f"{subscriber}")
-            async for event in subscriber:
-                user = event.message
-                public_user = UserSchema(
-                    id=user["id"], username=user["username"], email=user["email"]
-                )
-                logger.info(f"publish user: {public_user}")
-                yield public_user
+        try:
+            async with info.context.event_broker.subscribe(channel="add_user") as subscriber:
+                logger.info(f"{subscriber}")
+                async for event in subscriber:
+                    user = event.message
+                    public_user = UserSchema(
+                        id=user["id"], username=user["username"], email=user["email"]
+                    )
+                    logger.info(f"publish user: {public_user}")
+                    yield public_user
+        except BrokerUnavailableError as exc:
+            raise broker_unavailable_graphql_error(info, exc) from exc
 
     @strawberry.subscription
     async def message_added_subscription(self, info: Info) -> AsyncGenerator[MessageSchema, None]:
@@ -98,15 +103,18 @@ class Subscription:
         logger = logging.getLogger(__name__)
         logger.setLevel(logging.DEBUG)
         logger.info("starting add message")
-        logger.info(id(info.context.broadcast))
+        logger.info(id(info.context.event_broker))
 
-        async with info.context.broadcast.subscribe(channel="add_message") as subscriber:
-            logger.info(f"sub: {subscriber}")
-            async for event in subscriber:
-                messages = event.message
-                logger.info(f"publish: {len(messages)} messages")
-                for message in messages:
-                    yield message
+        try:
+            async with info.context.event_broker.subscribe(channel="add_message") as subscriber:
+                logger.info(f"sub: {subscriber}")
+                async for event in subscriber:
+                    messages = event.message
+                    logger.info(f"publish: {len(messages)} messages")
+                    for message in messages:
+                        yield message
+        except BrokerUnavailableError as exc:
+            raise broker_unavailable_graphql_error(info, exc) from exc
 
 
 schema = strawberry.Schema(

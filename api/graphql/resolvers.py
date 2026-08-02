@@ -9,8 +9,14 @@ from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from api.graphql.fields import UserSchema, UserCreateInput, UploadFileSchema, MessageSchema
-from api.errors import ConflictError, DatabaseUnavailableError, ResourceNotFoundError
+from api.errors import (
+    BrokerUnavailableError,
+    ConflictError,
+    DatabaseUnavailableError,
+    ResourceNotFoundError,
+)
 from api.graphql.errors import (
+    broker_unavailable_graphql_error,
     conflict_graphql_error,
     database_unavailable_graphql_error,
     resource_not_found_graphql_error,
@@ -43,7 +49,11 @@ async def create_user(data: UserCreateInput, info: Info) -> UserSchema:
     except DatabaseUnavailableError as exc:
         raise database_unavailable_graphql_error(info, exc) from exc
     public_user = {"id": user.id, "username": user.username, "email": user.email}
-    await info.context.broadcast.publish(channel="add_user", message=public_user)
+    try:
+        await info.context.event_broker.publish(channel="add_user", message=public_user)
+    except BrokerUnavailableError as exc:
+        committed_error = BrokerUnavailableError(operation_committed=True)
+        raise broker_unavailable_graphql_error(info, committed_error) from exc
     return user
 
 
@@ -64,5 +74,9 @@ async def get_messages(tid: int, info: Info) -> List[MessageSchema]:
 
 async def add_messages(tid: int, info: Info) -> List[MessageSchema]:
     messages = info.context.message_service.add_generated_messages(tid)
-    await info.context.broadcast.publish(channel="add_message", message=messages)
+    try:
+        await info.context.event_broker.publish(channel="add_message", message=messages)
+    except BrokerUnavailableError as exc:
+        committed_error = BrokerUnavailableError(operation_committed=True)
+        raise broker_unavailable_graphql_error(info, committed_error) from exc
     return messages

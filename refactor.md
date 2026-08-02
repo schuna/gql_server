@@ -465,3 +465,28 @@ Service/Unit of Work 전체 이동은 그 다음 PR로 분리한다. 이렇게 �
 - message 동작과 resource lifecycle 회귀 테스트 추가
 
 아직 남은 주요 작업은 SQLAlchemy entity와 domain model의 완전한 분리, 운영용 외부 message broker 도입, broker 장애의 공개 오류 계약, transactional outbox 검토다.
+
+### 4차 적용 상태
+
+- immutable `User` domain model과 SQLAlchemy `UserRecord` 분리
+- repository 내부 ORM ↔ domain mapping 추가
+- application port/service에서 SQLAlchemy model import 제거
+- `BROADCAST_URL` 설정으로 memory/Redis backend 선택
+- Redis extra와 client 의존성 추가
+- 구조화 payload의 JSON 직렬화/역직렬화 adapter 추가
+- `BrokerUnavailableError`와 REST 503/GraphQL extensions 오류 계약 추가
+- broker 상태를 readiness에 포함
+- broker 장애 후 이미 저장된 mutation에는 `operation_committed=true`, `retryable=false` 제공
+- memory payload round-trip, 연결 실패, domain mapping 회귀 테스트 추가
+
+`memory://`는 단일 프로세스 개발/테스트 전용이다. 다중 worker 또는 여러 인스턴스에서는 `.env.example` 안내에 따라 Redis URL을 설정해야 한다.
+
+Transactional outbox는 이번 단계에서 구현하지 않았다. 현재 이벤트는 실시간 알림이며 source of truth는 DB/API 응답이다. Broker 장애 시 API가 `operation_committed`를 명시해 클라이언트의 중복 재시도를 방지한다. 이벤트의 반드시 한 번 이상 전달이 업무 요구사항이 되면 다음을 별도 변경으로 진행한다.
+
+1. outbox table Alembic migration
+2. 사용자 변경과 outbox insert의 동일 transaction 처리
+3. 별도 dispatcher worker와 retry/backoff
+4. event ID 기반 consumer deduplication
+5. 처리 완료/실패 metric과 dead-letter 운영 정책
+
+이는 DB schema, background worker, 전달 보장 및 중복 처리 정책을 함께 바꾸므로 단순 refactor와 분리해야 한다.

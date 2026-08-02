@@ -6,7 +6,7 @@ async-timeout==4.0.3
 attrs==26.1.0
 backoff==2.2.1
 bcrypt==4.0.1
-broadcaster==0.3.1
+broadcaster[redis]==0.3.1
 charset-normalizer==3.4.9
 click==8.4.2
 colorama==0.4.6
@@ -37,6 +37,7 @@ python-jose==3.5.0
 python-multipart==0.0.32
 PyYAML==6.0.3
 rsa==4.9.1
+redis==8.1.0
 six==1.17.0
 SQLAlchemy==1.4.54
 starlette==0.27.0

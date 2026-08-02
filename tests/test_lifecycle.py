@@ -14,7 +14,7 @@ class FakeDatabase:
         self.created = True
 
 
-class FakeBroadcast:
+class FakeEventBroker:
     def __init__(self):
         self.connected = False
         self.disconnected = False
@@ -28,30 +28,30 @@ class FakeBroadcast:
 
 def test_lifespan_owns_database_startup_and_broadcast_lifecycle():
     database = FakeDatabase()
-    broadcast = FakeBroadcast()
+    event_broker = FakeEventBroker()
 
     async def run_lifespan():
         main.container.db.override(providers.Object(database))
-        main.container.broadcast.override(providers.Object(broadcast))
+        main.container.event_broker.override(providers.Object(event_broker))
         try:
             async with main.lifespan(main.app):
                 assert database.created is True
-                assert broadcast.connected is True
-                assert broadcast.disconnected is False
+                assert event_broker.connected is True
+                assert event_broker.disconnected is False
         finally:
-            main.container.broadcast.reset_override()
+            main.container.event_broker.reset_override()
             main.container.db.reset_override()
 
     asyncio.run(run_lifespan())
 
-    assert broadcast.disconnected is True
+    assert event_broker.disconnected is True
 
 
 def test_main_app_uses_managed_dependencies_for_graphql():
     database = FakeDatabase()
-    broadcast = FakeBroadcast()
+    event_broker = FakeEventBroker()
     main.container.db.override(providers.Object(database))
-    main.container.broadcast.override(providers.Object(broadcast))
+    main.container.event_broker.override(providers.Object(event_broker))
     try:
         with TestClient(main.app) as client:
             response = client.post(
@@ -60,10 +60,10 @@ def test_main_app_uses_managed_dependencies_for_graphql():
             )
             assert response.status_code == 200
             assert response.json() == {"data": {"messages": []}}
-            assert broadcast.connected is True
+            assert event_broker.connected is True
     finally:
-        main.container.broadcast.reset_override()
+        main.container.event_broker.reset_override()
         main.container.db.reset_override()
 
     assert database.created is True
-    assert broadcast.disconnected is True
+    assert event_broker.disconnected is True
