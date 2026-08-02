@@ -6,14 +6,12 @@ from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 # noinspection PyPackageRequirements
 from jose import jwt, JWTError
 
+from api.application import UserService
 from api.container import Container
-from api.models import User
-from api.repositories.user import UserRepository
+from api.errors import ResourceNotFoundError
 from api.schemas import UserCreateSchema, UserDisplaySchema
 from api.graphql.fields import TokenSchema
-from api.utils.auth import (
-    Hash, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, oauth2_scheme, SECRET_KEY, ALGORITHM
-)
+from api.utils.auth import create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, oauth2_scheme, SECRET_KEY, ALGORITHM
 
 router = APIRouter(
     tags=["authentication"]
@@ -29,7 +27,7 @@ credentials_exception = HTTPException(
 @inject
 def get_current_user(
         token: str = Depends(oauth2_scheme),
-        user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
+        user_service: UserService = Depends(Provide[Container.user_service])):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("username")
@@ -38,24 +36,19 @@ def get_current_user(
     except JWTError:
         raise credentials_exception
 
-    response = user_repository.get_by_username(username)
-
-    if not response.success:
+    try:
+        return user_service.get_by_username(username)
+    except ResourceNotFoundError:
         raise credentials_exception
-
-    return response.data
 
 
 @router.post('/login', response_model=TokenSchema)
 @inject
 def login(
         request_form: OAuth2PasswordRequestForm = Depends(),
-        user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
-    user_response = user_repository.get_by_username(request_form.username)
-    if not user_response.success:
-        raise credentials_exception
-    user = user_response.data
-    if not Hash.verify(user.password, request_form.password):
+        user_service: UserService = Depends(Provide[Container.user_service])):
+    user = user_service.authenticate(request_form.username, request_form.password)
+    if user is None:
         raise credentials_exception
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -73,48 +66,31 @@ def login(
 @inject
 def create_user(
         request: UserCreateSchema,
-        user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
-    request.password = Hash.bcrypt(request.password)
-    response = user_repository.add(request)
-    if response.success:
-        return response.data
-    else:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{response.message}")
+        user_service: UserService = Depends(Provide[Container.user_service])):
+    return user_service.create(request)
 
 
 @router.get("/get_user/{user_id}", response_model=UserDisplaySchema)
 @inject
 def get_user(
         user_id: int,
-        user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
-    response = user_repository.get(user_id)
-    if response.success:
-        return response.data
-    else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{response.message}")
+        user_service: UserService = Depends(Provide[Container.user_service])):
+    return user_service.get(user_id)
 
 
 @router.post("/update_user/{user_id}", response_model=UserDisplaySchema)
 @inject
 def update_user(user_id: int,
                 request: UserCreateSchema,
-                user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
-    request.password = Hash.bcrypt(request.password)
-    response = user_repository.update(user_id, request)
-    if response.success:
-        return response.data
-    else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{response.message}")
+                user_service: UserService = Depends(Provide[Container.user_service])):
+    return user_service.update(user_id, request)
 
 
 # noinspection PyUnusedLocal
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 @inject
 def delete_user(user_id: int,
-                user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository]),
+                user_service: UserService = Depends(Provide[Container.user_service]),
                 current_user: UserDisplaySchema = Depends(get_current_user)):
-    response = user_repository.delete(user_id)
-    if response.success:
-        return response.data
-    else:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{response.message}")
+    user_service.delete(user_id)
+    return None

@@ -5,7 +5,6 @@ from typing import Optional, Any, Union, Awaitable
 
 from dotenv import load_dotenv
 from fastapi.security import OAuth2PasswordBearer
-from passlib.context import CryptContext
 # noinspection PyPackageRequirements
 from jose import jwt, JWTError
 from pydantic import ValidationError
@@ -20,7 +19,6 @@ from starlette.websockets import WebSocket
 
 from api.schemas import TokenPayload, TokenDataError
 
-password_context = CryptContext(schemes='bcrypt', deprecated='auto')
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 load_dotenv()
@@ -28,16 +26,6 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = 'HS256'
 
 ACCESS_TOKEN_EXPIRE_MINUTES = 525600
-
-
-class Hash:
-    @staticmethod
-    def bcrypt(password: str):
-        return password_context.hash(password)
-
-    @staticmethod
-    def verify(hashed_password, plain_password):
-        return password_context.verify(plain_password, hashed_password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):

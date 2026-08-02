@@ -9,42 +9,42 @@ from strawberry.file_uploads import Upload
 from strawberry.types import Info
 
 from api.graphql.fields import UserSchema, UserCreateInput, UploadFileSchema, MessageSchema
-from api.errors import ConflictError, DatabaseUnavailableError
-from api.graphql.errors import conflict_graphql_error, database_unavailable_graphql_error
+from api.errors import ConflictError, DatabaseUnavailableError, ResourceNotFoundError
+from api.graphql.errors import (
+    conflict_graphql_error,
+    database_unavailable_graphql_error,
+    resource_not_found_graphql_error,
+)
 from api.schemas import UserCreateSchema
-from api.utils.auth import Hash
 
 
 async def get_users(info: Info) -> list[UserSchema]:
     try:
-        return info.context.user_repository.gets().data
+        return info.context.user_service.list_users()
     except DatabaseUnavailableError as exc:
         raise database_unavailable_graphql_error(info, exc) from exc
 
 
 async def get_user(user_id: int, info: Info) -> UserSchema:
     try:
-        return info.context.user_repository.get(user_id).data
+        return info.context.user_service.get(user_id)
+    except ResourceNotFoundError as exc:
+        raise resource_not_found_graphql_error(exc) from exc
     except DatabaseUnavailableError as exc:
         raise database_unavailable_graphql_error(info, exc) from exc
 
 
 async def create_user(data: UserCreateInput, info: Info) -> UserSchema:
     entry = UserCreateSchema(**data.__dict__)
-    entry.password = Hash.bcrypt(entry.password)
     try:
-        response = info.context.user_repository.add(entry)
+        user = info.context.user_service.create(entry)
+    except ConflictError as exc:
+        raise conflict_graphql_error(exc) from exc
     except DatabaseUnavailableError as exc:
         raise database_unavailable_graphql_error(info, exc) from exc
-    if response.success:
-        public_user = {
-            "id": response.data.id,
-            "username": response.data.username,
-            "email": response.data.email,
-        }
-        await info.context.broadcast.publish(channel="add_user", message=public_user)
-        return response.data
-    raise conflict_graphql_error(ConflictError(response.message))
+    public_user = {"id": user.id, "username": user.username, "email": user.email}
+    await info.context.broadcast.publish(channel="add_user", message=public_user)
+    return user
 
 
 async def upload_file(filename: str, file: Upload):

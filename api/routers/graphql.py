@@ -6,13 +6,10 @@ from strawberry.fastapi import BaseContext, GraphQLRouter
 # noinspection PyPackageRequirements
 from strawberry.subscriptions import GRAPHQL_TRANSPORT_WS_PROTOCOL, GRAPHQL_WS_PROTOCOL
 
+from api.application import UserService
 from api.container import Container
 from api.graphql.schema import schema
-from api.models import User
-from api.models.message import Message
 from api.repositories.message import MessageRepository
-from api.repositories.user import UserRepository
-from api.schemas import UserCreateSchema, MessageCreateSchema
 
 
 class CustomContext(BaseContext):
@@ -21,11 +18,11 @@ class CustomContext(BaseContext):
     @inject
     def __init__(
             self,
-            user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository]),
+            user_service: UserService = Depends(Provide[Container.user_service]),
             message_repository: MessageRepository = Depends(Provide[Container.message_repository])):
         super().__init__()
         self.message_repository = message_repository
-        self.user_repository = user_repository
+        self.user_service = user_service
 
 
 broadcast = None

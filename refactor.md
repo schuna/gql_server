@@ -439,4 +439,16 @@ Service/Unit of Work 전체 이동은 그 다음 PR로 분리한다. 이렇게 �
 - 공개 사용자 event에서 password 제거
 - DB 장애·오류 계약·비밀번호 보안 회귀 테스트 추가
 
-아직 남은 주요 작업은 `UserService`, repository port, Unit of Work 도입과 broadcaster lifecycle 정리다. 이 작업은 현재 변경의 운영 동작을 확인한 뒤 별도 단계로 진행하는 것이 안전하다.
+### 2차 적용 상태
+
+사용자 기능에 다음 구조를 추가 적용했다.
+
+- REST와 GraphQL이 공유하는 `UserService`
+- application 계층의 `UserRepositoryPort`, `UserUnitOfWorkPort`
+- transaction commit/rollback을 조정하는 `SqlAlchemyUnitOfWork`
+- session만 사용하는 SQLAlchemy `UserRepository`
+- application service가 단독으로 수행하는 password hash와 인증
+- `ResourceNotFoundError`, `ConflictError`의 REST/GraphQL 공통 매핑
+- SQLite 통합 테스트를 통한 commit, conflict rollback, 조회 실패 검증
+
+이에 따라 사용자 repository는 GraphQL `ResponseSchema`에 더 이상 의존하지 않고 presentation 계층에서 직접 호출되지 않는다. 아직 남은 주요 작업은 message 기능의 동일한 계층 분리, broadcaster lifecycle 정리, SQLAlchemy entity와 domain model의 완전한 분리다.

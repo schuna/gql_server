@@ -19,15 +19,16 @@ class FailingEngine:
         raise OperationalError("SELECT 1", {}, Exception("connection refused"))
 
 
-class FakeUserRepository:
+class FakeUserService:
     def __init__(self):
         self.entry = None
 
-    def add(self, entry):
+    def create(self, entry):
         self.entry = entry
         return SimpleNamespace(
-            success=True,
-            data=SimpleNamespace(id=1, username=entry.username, email=entry.email),
+            id=1,
+            username=entry.username,
+            email=entry.email,
         )
 
 
@@ -104,14 +105,14 @@ def test_graphql_schema_does_not_expose_password():
 def test_graphql_database_error_has_stable_extensions():
     from api.graphql.schema import schema
 
-    class UnavailableRepository:
-        def gets(self):
+    class UnavailableService:
+        def list_users(self):
             raise DatabaseUnavailableError()
 
     request = SimpleNamespace(state=SimpleNamespace(request_id="graphql-request"))
     context = SimpleNamespace(
         request=request,
-        user_repository=UnavailableRepository(),
+        user_service=UnavailableService(),
     )
     result = asyncio.run(schema.execute("{ users { id } }", context_value=context))
 
@@ -125,19 +126,12 @@ def test_graphql_database_error_has_stable_extensions():
     }
 
 
-def test_graphql_user_creation_hashes_password_once(monkeypatch):
-    hashes = []
-
-    def fake_hash(password):
-        hashes.append(password)
-        return "hashed-password"
-
-    monkeypatch.setattr("api.graphql.resolvers.Hash.bcrypt", fake_hash)
-    repository = FakeUserRepository()
+def test_graphql_user_creation_uses_service_and_public_event():
+    service = FakeUserService()
     broadcast = FakeBroadcast()
     info = SimpleNamespace(
         context=SimpleNamespace(
-            user_repository=repository,
+            user_service=service,
             broadcast=broadcast,
         )
     )
@@ -153,8 +147,7 @@ def test_graphql_user_creation_hashes_password_once(monkeypatch):
         )
     )
 
-    assert hashes == ["plain-password"]
-    assert repository.entry.password == "hashed-password"
+    assert service.entry.password == "plain-password"
     assert result.username == "test-user"
     assert broadcast.message == {
         "id": 1,

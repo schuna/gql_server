@@ -44,6 +44,7 @@ class Database:
             orm.sessionmaker(
                 autocommit=False,
                 autoflush=False,
+                expire_on_commit=False,
                 bind=self._engine,
             ),
         )

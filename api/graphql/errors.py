@@ -4,7 +4,7 @@ from graphql import GraphQLError
 from strawberry.types import Info
 
 from api.error_handlers import PUBLIC_DATABASE_ERROR
-from api.errors import ConflictError, DatabaseUnavailableError
+from api.errors import ConflictError, DatabaseUnavailableError, ResourceNotFoundError
 
 
 def database_unavailable_graphql_error(
@@ -25,4 +25,8 @@ def database_unavailable_graphql_error(
 
 
 def conflict_graphql_error(exc: ConflictError) -> GraphQLError:
+    return GraphQLError(str(exc), extensions={"code": exc.code, "retryable": False})
+
+
+def resource_not_found_graphql_error(exc: ResourceNotFoundError) -> GraphQLError:
     return GraphQLError(str(exc), extensions={"code": exc.code, "retryable": False})

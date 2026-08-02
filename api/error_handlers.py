@@ -3,7 +3,7 @@ import uuid
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from api.errors import DatabaseUnavailableError
+from api.errors import ConflictError, DatabaseUnavailableError, ResourceNotFoundError
 
 
 PUBLIC_DATABASE_ERROR = (
@@ -16,6 +16,30 @@ def get_request_id(request: Request) -> str:
 
 
 def register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ResourceNotFoundError)
+    async def resource_not_found_handler(
+        request: Request, exc: ResourceNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=404,
+            content={
+                "detail": str(exc),
+                "code": exc.code,
+                "request_id": get_request_id(request),
+            },
+        )
+
+    @app.exception_handler(ConflictError)
+    async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": str(exc),
+                "code": exc.code,
+                "request_id": get_request_id(request),
+            },
+        )
+
     @app.exception_handler(DatabaseUnavailableError)
     async def database_unavailable_handler(
         request: Request, exc: DatabaseUnavailableError
