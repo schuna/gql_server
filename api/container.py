@@ -12,6 +12,7 @@ class Container(containers.DeclarativeContainer):
     wiring_config = containers.WiringConfiguration(modules=[
         "api.routers.login",
         "api.routers.graphql",
+        "api.routers.health",
     ])
     config = providers.Configuration(yaml_files=["config.yml"])
     db = providers.Singleton(Database, db_url=config.db.url)

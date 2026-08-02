@@ -1,40 +1,50 @@
 import os
-import time
 import uuid
 from pathlib import Path
 from typing import List
 
-from fastapi import HTTPException, status
-from fastapi.encoders import jsonable_encoder
 # noinspection PyPackageRequirements
 from strawberry.file_uploads import Upload
 # noinspection PyPackageRequirements
 from strawberry.types import Info
 
 from api.graphql.fields import UserSchema, UserCreateInput, UploadFileSchema, MessageSchema
+from api.errors import ConflictError, DatabaseUnavailableError
+from api.graphql.errors import conflict_graphql_error, database_unavailable_graphql_error
 from api.schemas import UserCreateSchema
 from api.utils.auth import Hash
 
 
 async def get_users(info: Info) -> list[UserSchema]:
-    return info.context.user_repository.gets().data
+    try:
+        return info.context.user_repository.gets().data
+    except DatabaseUnavailableError as exc:
+        raise database_unavailable_graphql_error(info, exc) from exc
 
 
 async def get_user(user_id: int, info: Info) -> UserSchema:
-    return info.context.user_repository.get(user_id).data
+    try:
+        return info.context.user_repository.get(user_id).data
+    except DatabaseUnavailableError as exc:
+        raise database_unavailable_graphql_error(info, exc) from exc
 
 
 async def create_user(data: UserCreateInput, info: Info) -> UserSchema:
-    data.password = Hash.bcrypt(data.password)
     entry = UserCreateSchema(**data.__dict__)
     entry.password = Hash.bcrypt(entry.password)
-    response = info.context.user_repository.add(entry)
+    try:
+        response = info.context.user_repository.add(entry)
+    except DatabaseUnavailableError as exc:
+        raise database_unavailable_graphql_error(info, exc) from exc
     if response.success:
-        await info.context.broadcast.publish(channel="add_user", message=jsonable_encoder(response.data))
-        user_json = jsonable_encoder(response.data)
-        print(f"user create: {user_json}")
+        public_user = {
+            "id": response.data.id,
+            "username": response.data.username,
+            "email": response.data.email,
+        }
+        await info.context.broadcast.publish(channel="add_user", message=public_user)
         return response.data
-    raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{response.message}")
+    raise conflict_graphql_error(ConflictError(response.message))
 
 
 async def upload_file(filename: str, file: Upload):

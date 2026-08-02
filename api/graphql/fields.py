@@ -25,7 +25,6 @@ class UserSchema:
     id: strawberry.ID
     username: str
     email: str
-    password: str
 
 
 @strawberry.type

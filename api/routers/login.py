@@ -53,10 +53,10 @@ def login(
         user_repository: UserRepository[User, UserCreateSchema] = Depends(Provide[Container.user_repository])):
     user_response = user_repository.get_by_username(request_form.username)
     if not user_response.success:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
+        raise credentials_exception
     user = user_response.data
     if not Hash.verify(user.password, request_form.password):
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid credentials")
+        raise credentials_exception
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
 
@@ -82,7 +82,7 @@ def create_user(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{response.message}")
 
 
-@router.get("/get_user/{id}", response_model=UserDisplaySchema)
+@router.get("/get_user/{user_id}", response_model=UserDisplaySchema)
 @inject
 def get_user(
         user_id: int,

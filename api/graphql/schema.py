@@ -86,8 +86,11 @@ class Subscription:
             logger.info(f"{subscriber}")
             async for event in subscriber:
                 user = event.message
-                logger.info(f"publish user: {UserSchema(**user)}")
-                yield UserSchema(**user)
+                public_user = UserSchema(
+                    id=user["id"], username=user["username"], email=user["email"]
+                )
+                logger.info(f"publish user: {public_user}")
+                yield public_user
 
     @strawberry.subscription
     async def message_added_subscription(self, info: Info) -> AsyncGenerator[MessageSchema, None]:

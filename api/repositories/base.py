@@ -30,7 +30,7 @@ class RepositoryBase(Generic[T, V]):
             except IntegrityError:
                 logging.info("Duplicated Error")
                 session.rollback()
-                return ResponseSchema(**{"success": False, "message": f"Duplicated Error {item.json()}"})
+                return ResponseSchema(**{"success": False, "message": "Resource already exists"})
 
     # Read
     def get(self, item_id: int) -> ResponseSchema:
